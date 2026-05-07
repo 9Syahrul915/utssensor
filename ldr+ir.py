@@ -19,7 +19,6 @@ while True:
     # Baca LDR
     ldr_nilai = ldr.read()             # Nilai 0 - 4095
     if ldr_nilai < 1000:
-        
         status_ldr = "Gelap"
     elif ldr_nilai < 3000:
         status_ldr = "Redup"
