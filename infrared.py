@@ -17,4 +17,4 @@ while True:
     # Tampilkan hasil
     print("IR:", status_ir)
 
-    time.sleep(2)
+    time.sleep(1)
