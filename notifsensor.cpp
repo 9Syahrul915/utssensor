@@ -1,11 +1,3 @@
-/*
- * =====================================================
- *  ESP32 + Sensor IR + Telegram (INSTAN) + GitHub (LOG)
- * =====================================================
- *  Notifikasi langsung ke Telegram tanpa delay!
- *  Data tetap di-log ke GitHub untuk backup.
- */
-
 #include <WiFi.h>
 #include <HTTPClient.h>
 #include <WiFiClientSecure.h>
@@ -31,9 +23,8 @@ const char* GITHUB_REPO    = "utssensor";
 const char* SENSOR_LOCATION  = "Gerbang Depan";
 
 // ============ KONFIGURASI WAKTU ============
-const long  COOLDOWN_MS      = 30000;  // 30 detik cooldown
+const long  COOLDOWN_MS       = 1;  // 1 detik cooldown
 unsigned long lastAlertTime   = 0;
-int detectionCount            = 0;     // Hitung total deteksi
 
 // ============ NTP TIME ============
 const char* ntpServer        = "pool.ntp.org";
@@ -85,15 +76,14 @@ void loop() {
     unsigned long now = millis();
 
     if (now - lastAlertTime > COOLDOWN_MS) {
-      detectionCount++;
-      Serial.printf("🚨 ANOMALI TERDETEKSI! (Total: %d)\n", detectionCount);
+      Serial.printf("🚨 ANOMALI TERDETEKSI! \n");
 
       digitalWrite(LED_INDICATOR, HIGH);
 
       // ⚡ STEP 1: Kirim ke Telegram LANGSUNG (instan!)
       bool telegramOK = sendTelegramNotification("TERDETEKSI");
       if (telegramOK) {
-        Serial.println("✅ Telegram: Notifikasi terkirim INSTAN!");
+        Serial.println("✅ Telegram: Notifikasi terkirim!");
       } else {
         Serial.println("❌ Telegram: Gagal mengirim!");
       }
@@ -159,7 +149,6 @@ bool sendTelegramNotification(String status) {
     message += "📡 Status: " + status + "\\n";
     message += "📍 Lokasi: " + String(SENSOR_LOCATION) + "\\n";
     message += "🕐 Waktu: " + timestamp + "\\n";
-    message += "🔢 Deteksi ke-" + String(detectionCount) + "\\n";
     message += "━━━━━━━━━━━━━━━━━━━━\\n";
     message += "⚠️ Segera cek lokasi sensor!";
   }
@@ -208,8 +197,7 @@ bool sendGitHubLog(String status) {
   payload += "\"client_payload\":{";
   payload += "\"status\":\"" + status + "\",";
   payload += "\"location\":\"" + String(SENSOR_LOCATION) + "\",";
-  payload += "\"timestamp\":\"" + timestamp + "\",";
-  payload += "\"count\":\"" + String(detectionCount) + "\"";
+  payload += "\"timestamp\":\"" + timestamp + "\"";
   payload += "}}";
 
   int httpCode = http.POST(payload);
