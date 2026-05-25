@@ -1,0 +1,53 @@
+name: 🔔 Sensor Alert - Telegram Notification
+
+on:
+  # Trigger dari ESP32 via API
+  repository_dispatch:
+    types: [sensor-alert]
+  
+  # Trigger manual untuk testing
+  workflow_dispatch:
+    inputs:
+      message:
+        description: 'Pesan notifikasi'
+        required: false
+        default: '🔔 Test notifikasi dari GitHub Actions'
+
+jobs:
+  send-telegram-notification:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: 📨 Kirim Notifikasi ke Telegram
+        run: |
+          # Tentukan pesan
+          if [ "${{ github.event_name }}" = "repository_dispatch" ]; then
+            SENSOR_STATUS="${{ github.event.client_payload.status }}"
+            SENSOR_LOCATION="${{ github.event.client_payload.location }}"
+            TIMESTAMP="${{ github.event.client_payload.timestamp }}"
+            
+            MESSAGE="🚨 *ALERT: Objek Terdeteksi!*%0A"
+            MESSAGE+="━━━━━━━━━━━━━━━━━━━━%0A"
+            MESSAGE+="📡 *Status:* ${SENSOR_STATUS}%0A"
+            MESSAGE+="📍 *Lokasi:* ${SENSOR_LOCATION}%0A"
+            MESSAGE+="🕐 *Waktu:* ${TIMESTAMP}%0A"
+            MESSAGE+="━━━━━━━━━━━━━━━━━━━━%0A"
+            MESSAGE+="⚠️ Segera cek lokasi sensor!"
+          else
+            MESSAGE="${{ github.event.inputs.message }}"
+          fi
+          
+          # Kirim ke Telegram
+          curl -s -X POST \
+            "https://api.telegram.org/bot${{ secrets.TELEGRAM_BOT_TOKEN }}/sendMessage" \
+            -d chat_id=${{ secrets.TELEGRAM_CHAT_ID }} \
+            -d text="${MESSAGE}" \
+            -d parse_mode=Markdown
+          
+          echo "✅ Notifikasi berhasil dikirim ke Telegram!"
+
+      - name: 📝 Log Event
+        run: |
+          echo "Event: ${{ github.event_name }}"
+          echo "Waktu: $(date '+%Y-%m-%d %H:%M:%S UTC')"
+          echo "Triggered by: ${{ github.actor }}"
