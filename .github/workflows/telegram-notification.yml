@@ -1,18 +1,52 @@
-name: 📝 Sensor Log
+name: Sensor Alert - WhatsApp via Fonnte
 on:
   repository_dispatch:
     types: [sensor-alert]
 jobs:
-  log-sensor-data:
+  send-whatsapp:
     runs-on: ubuntu-latest
     steps:
-      - name: 📝 Log Data Sensor
+      - name: Log Sensor Data
         run: |
-          echo "================================="
-          echo "  📡 DATA SENSOR DITERIMA"
-          echo "================================="
-          echo "Status  : ${{ github.event.client_payload.status }}"
-          echo "Lokasi  : ${{ github.event.client_payload.location }}"
-          echo "Waktu   : ${{ github.event.client_payload.timestamp }}"
-          echo "Deteksi : ${{ github.event.client_payload.count }}"
-          echo "================================="
+          echo "=============================="
+          echo "  SENSOR ALERT RECEIVED"
+          echo "=============================="
+          echo "Status   : ${{ github.event.client_payload.status }}"
+          echo "Lokasi   : ${{ github.event.client_payload.location }}"
+          echo "Timestamp: ${{ github.event.client_payload.timestamp }}"
+          echo "=============================="
+      - name: Send WhatsApp via Fonnte
+        run: |
+          STATUS="${{ github.event.client_payload.status }}"
+          LOCATION="${{ github.event.client_payload.location }}"
+          TIMESTAMP="${{ github.event.client_payload.timestamp }}"
+          if [ "$STATUS" = "STARTUP" ]; then
+            MESSAGE="🟢 *SISTEM AKTIF*
+          ━━━━━━━━━━━━━━━━━━━━
+          📡 ESP32 Sensor IR telah menyala
+          📍 Lokasi: ${LOCATION}
+          🕐 Waktu: ${TIMESTAMP}
+          ━━━━━━━━━━━━━━━━━━━━
+          ✅ Siap menerima deteksi sensor"
+          else
+            MESSAGE="🚨 *ALERT: ANOMALI TERDETEKSI!*
+          ━━━━━━━━━━━━━━━━━━━━
+          📡 Status: ${STATUS}
+          📍 Lokasi: ${LOCATION}
+          🕐 Waktu: ${TIMESTAMP}
+          ━━━━━━━━━━━━━━━━━━━━
+          ⚠️ Segera cek lokasi sensor!"
+          fi
+          echo "Mengirim WhatsApp ke: ${{ secrets.FONNTE_TARGET }}"
+          RESPONSE=$(curl -s -X POST "https://api.fonnte.com/send" \
+            -H "Authorization: ${{ secrets.FONNTE_TOKEN }}" \
+            -d "target=${{ secrets.FONNTE_TARGET }}" \
+            -d "message=${MESSAGE}")
+          echo "Fonnte Response: ${RESPONSE}"
+          # Cek apakah berhasil
+          if echo "$RESPONSE" | grep -q '"status":true'; then
+            echo "✅ WhatsApp berhasil dikirim!"
+          else
+            echo "❌ WhatsApp gagal dikirim!"
+            exit 1
+          fi
