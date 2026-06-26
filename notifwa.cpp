@@ -8,7 +8,7 @@ const char* WIFI_SSID     = "py";
 const char* WIFI_PASSWORD  = "11111111";
 
 // ============ KONFIGURASI GITHUB ============
-const char* GITHUB_TOKEN   = "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";
+const char* GITHUB_TOKEN   = "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";
 const char* GITHUB_OWNER   = "9Syahrul915";
 const char* GITHUB_REPO    = "utssensor";
 
