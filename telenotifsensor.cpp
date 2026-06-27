@@ -4,23 +4,23 @@
 #include <time.h>
 
 // ============ KONFIGURASI WiFi ============
-const char* WIFI_SSID     = "py";
-const char* WIFI_PASSWORD  = "11111111";
+const char* WIFI_SSID     = "Home
+const char* WIFI_PASSWORD  = "";
 
 // ============ KONFIGURASI TELEGRAM (LANGSUNG) ============
-const char* TELEGRAM_BOT_TOKEN = "8981733792:AAETc1u-Fq8MBsVDSupV1LWt67O4rk7ZNgg";
-const char* TELEGRAM_CHAT_ID   = "7710360988";
+const char* TELEGRAM_BOT_TOKEN = "";
+const char* TELEGRAM_CHAT_ID   = "";
 
 // ============ KONFIGURASI GITHUB (OPSIONAL - UNTUK LOG) ============
 const bool  ENABLE_GITHUB_LOG = true;  // Set false jika tidak mau log ke GitHub
-const char* GITHUB_TOKEN   = "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";
+const char* GITHUB_TOKEN   = "";
 const char* GITHUB_OWNER   = "9Syahrul915";
 const char* GITHUB_REPO    = "utssensor";
 
 // ============ KONFIGURASI SENSOR ============
 #define IR_SENSOR_PIN   14
 #define LED_INDICATOR   2
-const char* SENSOR_LOCATION  = "Gerbang Depan";
+const char* SENSOR_LOCATION  = "Brankas Uang";
 
 // ============ KONFIGURASI WAKTU ============
 const unsigned long REPORT_INTERVAL_MS = 600000;  // 10 menit (600.000 ms)
