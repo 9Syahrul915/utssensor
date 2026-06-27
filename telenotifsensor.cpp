@@ -23,8 +23,9 @@ const char* GITHUB_REPO    = "utssensor";
 const char* SENSOR_LOCATION  = "Gerbang Depan";
 
 // ============ KONFIGURASI WAKTU ============
-const long  COOLDOWN_MS       = 1;  // 1 detik cooldown
-unsigned long lastAlertTime   = 0;
+const unsigned long REPORT_INTERVAL_MS = 600000;  // 10 menit (600.000 ms)
+unsigned long lastReportTime           = 0;
+String lastStatus                      = "UNKNOWN";
 
 // ============ NTP TIME ============
 const char* ntpServer        = "pool.ntp.org";
@@ -44,7 +45,7 @@ void setup() {
   Serial.begin(115200);
   Serial.println("\n==========================================");
   Serial.println("  ESP32 Sensor IR + Telegram + GitHub");
-  Serial.println("  Mode: Notifikasi INSTAN ke Telegram");
+  Serial.println("  Mode: Pemantau Keamanan Brankas Uang");
   Serial.println("==========================================");
 
   pinMode(IR_SENSOR_PIN, INPUT);
@@ -57,8 +58,6 @@ void setup() {
   Serial.println("⏰ Sinkronisasi waktu...");
   delay(2000);
 
-  // Kirim pesan startup ke Telegram
-  sendTelegramNotification("STARTUP");
   Serial.println("✅ Sistem siap! Menunggu deteksi sensor...\n");
 }
 
@@ -71,52 +70,75 @@ void loop() {
   }
 
   int sensorValue = digitalRead(IR_SENSOR_PIN);
+  String currentStatus = (sensorValue == LOW) ? "AMAN" : "BAHAYA";
 
-  if (sensorValue == LOW) {
-    unsigned long now = millis();
-
-    if (now - lastAlertTime > COOLDOWN_MS) {
-      Serial.printf("🚨 ANOMALI TERDETEKSI! \n");
-
-      digitalWrite(LED_INDICATOR, HIGH);
-
-      // ⚡ STEP 1: Kirim ke Telegram LANGSUNG (instan!)
-      bool telegramOK = sendTelegramNotification("TERDETEKSI");
-      if (telegramOK) {
-        Serial.println("✅ Telegram: Notifikasi terkirim!");
-      } else {
-        Serial.println("❌ Telegram: Gagal mengirim!");
-      }
-
-      // 📝 STEP 2: Log ke GitHub (background, opsional)
-      if (ENABLE_GITHUB_LOG) {
-        bool githubOK = sendGitHubLog("TERDETEKSI");
-        if (githubOK) {
-          Serial.println("✅ GitHub: Log tersimpan.");
-        } else {
-          Serial.println("⚠️ GitHub: Gagal log (tidak masalah).");
-        }
-      }
-
-      Serial.println();
-      lastAlertTime = now;
-
-      delay(2000);
-      digitalWrite(LED_INDICATOR, LOW);
-    } else {
-      long remaining = (COOLDOWN_MS - (now - lastAlertTime)) / 1000;
-      Serial.printf("⏳ Cooldown: %ld detik lagi\n", remaining);
-      delay(1000);
-    }
+  // Set LED Indikator: menyala jika BAHAYA (brankas terbuka), mati jika AMAN (tertutup)
+  if (currentStatus == "BAHAYA") {
+    digitalWrite(LED_INDICATOR, HIGH);
+  } else {
+    digitalWrite(LED_INDICATOR, LOW);
   }
 
-  delay(200);
+  unsigned long now = millis();
+
+  // Deteksi transisi instan dari AMAN ke BAHAYA (pintu dibuka tiba-tiba)
+  bool statusChangedToDanger = (currentStatus == "BAHAYA" && lastStatus == "AMAN");
+
+  if (lastStatus == "UNKNOWN") {
+    // Inisialisasi status awal pada pembacaan pertama
+    lastStatus = currentStatus;
+    Serial.printf("📝 Pembacaan awal: %s\n", currentStatus.c_str());
+    if (ENABLE_GITHUB_LOG) {
+      sendGitHubLog(currentStatus);
+    }
+    if (currentStatus == "BAHAYA") {
+      sendTelegramNotification(currentStatus);
+    }
+    lastReportTime = now;
+  }
+  else if (now - lastReportTime >= REPORT_INTERVAL_MS || statusChangedToDanger) {
+    if (statusChangedToDanger) {
+      Serial.println("🚨 TRANSISI DETEKSI: Brankas Terbuka! Mengirim peringatan instan...");
+    } else {
+      Serial.printf("⏰ Laporan berkala (10 menit): Brankas %s\n", currentStatus.c_str());
+    }
+
+    // Kirim log ke GitHub
+    if (ENABLE_GITHUB_LOG) {
+      bool githubOK = sendGitHubLog(currentStatus);
+      if (githubOK) {
+        Serial.printf("✅ GitHub: Log '%s' berhasil dikirim.\n", currentStatus.c_str());
+      } else {
+        Serial.println("⚠️ GitHub: Gagal mengirim log.");
+      }
+    }
+
+    // Kirim Telegram hanya jika BAHAYA
+    if (currentStatus == "BAHAYA") {
+      bool telegramOK = sendTelegramNotification(currentStatus);
+      if (telegramOK) {
+        Serial.println("✅ Telegram: Notifikasi bahaya terkirim!");
+      } else {
+        Serial.println("❌ Telegram: Gagal mengirim notifikasi.");
+      }
+    }
+
+    Serial.println();
+    lastReportTime = now;
+    lastStatus = currentStatus;
+  }
+
+  delay(1000); // Periksa sensor setiap 1 detik
 }
 
 // ======================================================
 //     ⚡ KIRIM NOTIFIKASI LANGSUNG KE TELEGRAM (INSTAN)
 // ======================================================
 bool sendTelegramNotification(String status) {
+  if (status != "BAHAYA") {
+    return false;
+  }
+
   WiFiClientSecure client;
   client.setInsecure();
 
@@ -132,26 +154,14 @@ bool sendTelegramNotification(String status) {
   // Dapatkan waktu
   String timestamp = getFormattedTime();
 
-  // Buat pesan
-  String message;
-
-  if (status == "STARTUP") {
-    message = "🟢 *SISTEM AKTIF*\\n";
-    message += "━━━━━━━━━━━━━━━━━━━━\\n";
-    message += "📡 ESP32 Sensor IR telah menyala\\n";
-    message += "📍 Lokasi: " + String(SENSOR_LOCATION) + "\\n";
-    message += "🕐 Waktu: " + timestamp + "\\n";
-    message += "━━━━━━━━━━━━━━━━━━━━\\n";
-    message += "✅ Siap menerima deteksi sensor";
-  } else {
-    message = "🚨 *ALERT: ANOMALI TERDETEKSI!*\\n";
-    message += "━━━━━━━━━━━━━━━━━━━━\\n";
-    message += "📡 Status: " + status + "\\n";
-    message += "📍 Lokasi: " + String(SENSOR_LOCATION) + "\\n";
-    message += "🕐 Waktu: " + timestamp + "\\n";
-    message += "━━━━━━━━━━━━━━━━━━━━\\n";
-    message += "⚠️ Segera cek lokasi sensor!";
-  }
+  // Buat pesan khusus brankas terbuka
+  String message = "🚨 *PERINGATAN: BRANKAS TERBUKA!*\\n";
+  message += "━━━━━━━━━━━━━━━━━━━━\\n";
+  message += "⚠️ Status: BAHAYA (Pintu Terbuka)\\n";
+  message += "📍 Lokasi: " + String(SENSOR_LOCATION) + "\\n";
+  message += "🕐 Waktu: " + timestamp + "\\n";
+  message += "━━━━━━━━━━━━━━━━━━━━\\n";
+  message += "🔴 Segera periksa brankas uang Anda!";
 
   // JSON payload
   String payload = "{";

@@ -1,0 +1,697 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>🏦 Pemantau Brankas Uang - Dashboard Keamanan</title>
+  <meta name="description" content="Dashboard real-time pemantauan status brankas uang menggunakan sensor infrared dan ESP32.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&family=Plus+Jakarta+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    /* Styling resets & variables */
+    :root {
+      --bg-color: #080b11;
+      --panel-bg: rgba(17, 24, 39, 0.6);
+      --panel-border: rgba(255, 255, 255, 0.08);
+      --text-main: #f3f4f6;
+      --text-muted: #9ca3af;
+      --color-safe: #10b981;
+      --color-safe-glow: rgba(16, 185, 129, 0.2);
+      --color-danger: #ef4444;
+      --color-danger-glow: rgba(239, 68, 68, 0.25);
+      --color-primary: #3b82f6;
+      --status-color: var(--color-safe);
+      --status-color-glow: var(--color-safe-glow);
+    }
+    
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+    
+    body {
+      background-color: var(--bg-color);
+      color: var(--text-main);
+      font-family: 'Plus Jakarta Sans', sans-serif;
+      min-height: 100vh;
+      overflow-x: hidden;
+      background-image: 
+        radial-gradient(circle at 10% 20%, rgba(59, 130, 246, 0.06) 0%, transparent 40%),
+        radial-gradient(circle at 90% 80%, rgba(239, 68, 68, 0.04) 0%, transparent 40%);
+      background-attachment: fixed;
+    }
+    
+    .container {
+      max-width: 1280px;
+      margin: 0 auto;
+      padding: 2rem 1.5rem;
+      animation: fadeIn 0.8s ease;
+    }
+    
+    /* Header styling */
+    header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 2.5rem;
+      padding-bottom: 1.5rem;
+      border-bottom: 1px solid var(--panel-border);
+    }
+    
+    .logo-area h1 {
+      font-family: 'Outfit', sans-serif;
+      font-size: 1.8rem;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+    }
+    
+    .logo-area p {
+      font-size: 0.875rem;
+      color: var(--text-muted);
+      margin-top: 0.25rem;
+    }
+    
+    .action-area {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+    }
+    
+    .btn {
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid var(--panel-border);
+      color: var(--text-main);
+      padding: 0.6rem 1.2rem;
+      border-radius: 8px;
+      font-weight: 600;
+      font-size: 0.875rem;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      transition: all 0.3s ease;
+    }
+    
+    .btn:hover {
+      background: rgba(255, 255, 255, 0.1);
+      border-color: rgba(255, 255, 255, 0.2);
+      transform: translateY(-1px);
+    }
+    
+    .toast-banner {
+      display: none;
+      background: rgba(245, 158, 11, 0.12);
+      border: 1px solid rgba(245, 158, 11, 0.25);
+      color: #fbbf24;
+      padding: 0.75rem 1.25rem;
+      border-radius: 10px;
+      margin-bottom: 1.5rem;
+      font-size: 0.875rem;
+      align-items: center;
+      gap: 0.75rem;
+      animation: fadeIn 0.5s ease;
+    }
+    
+    /* Stats Cards Grid */
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 1.5rem;
+      margin-bottom: 2.5rem;
+    }
+    
+    .card {
+      background: var(--panel-bg);
+      backdrop-filter: blur(12px);
+      border: 1px solid var(--panel-border);
+      border-radius: 16px;
+      padding: 1.5rem;
+      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+      position: relative;
+      overflow: hidden;
+    }
+    
+    .card::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 4px;
+      background: var(--color-primary);
+    }
+    
+    .card:hover {
+      transform: translateY(-4px);
+      box-shadow: 0 10px 20px rgba(0, 0, 0, 0.2);
+      border-color: rgba(255, 255, 255, 0.15);
+    }
+    
+    .card-label {
+      font-size: 0.75rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--text-muted);
+    }
+    
+    .card-value {
+      font-size: 2rem;
+      font-family: 'Outfit', sans-serif;
+      font-weight: 700;
+      margin-top: 0.5rem;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+    
+    .card-desc {
+      font-size: 0.8rem;
+      color: var(--text-muted);
+      margin-top: 0.5rem;
+    }
+    
+    /* Card specific styling */
+    .card-status::before {
+      background: var(--status-color);
+    }
+    
+    .card-safe::before {
+      background: var(--color-safe);
+    }
+    
+    .card-danger::before {
+      background: var(--color-danger);
+    }
+    
+    .status-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.75rem;
+      font-size: 1.75rem;
+      font-weight: 700;
+      letter-spacing: 0.02em;
+    }
+    
+    .pulse-dot {
+      width: 14px;
+      height: 14px;
+      border-radius: 50%;
+      background-color: var(--status-color);
+      box-shadow: 0 0 0 0 var(--status-color-glow);
+      animation: pulse 2s infinite;
+    }
+    
+    /* Main Layout Grid */
+    .main-grid {
+      display: grid;
+      grid-template-columns: 1.8fr 1.2fr;
+      gap: 1.5rem;
+    }
+    
+    @media (max-width: 968px) {
+      .main-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+    
+    .panel {
+      background: var(--panel-bg);
+      backdrop-filter: blur(12px);
+      border: 1px solid var(--panel-border);
+      border-radius: 20px;
+      padding: 1.75rem;
+    }
+    
+    .panel-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 1.5rem;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+      padding-bottom: 1rem;
+    }
+    
+    .panel-title {
+      font-family: 'Outfit', sans-serif;
+      font-size: 1.25rem;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+    
+    .chart-info {
+      font-size: 0.8rem;
+      color: var(--text-muted);
+    }
+    
+    /* Chart Container */
+    .chart-container {
+      position: relative;
+      height: 320px;
+      width: 100%;
+    }
+    
+    /* Table Styling */
+    .table-container {
+      max-height: 320px;
+      overflow-y: auto;
+    }
+    
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      text-align: left;
+      font-size: 0.875rem;
+    }
+    
+    th {
+      color: var(--text-muted);
+      font-weight: 600;
+      padding: 0.75rem 1rem;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+      position: sticky;
+      top: 0;
+      background: #0d121c;
+      z-index: 1;
+    }
+    
+    td {
+      padding: 0.85rem 1rem;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+    }
+    
+    tr:hover td {
+      background: rgba(255, 255, 255, 0.01);
+    }
+    
+    .row-danger {
+      background: rgba(239, 68, 68, 0.05);
+    }
+    
+    .row-danger:hover td {
+      background: rgba(239, 68, 68, 0.08) !important;
+    }
+    
+    .status-pill {
+      display: inline-flex;
+      align-items: center;
+      padding: 0.25rem 0.6rem;
+      border-radius: 9999px;
+      font-size: 0.75rem;
+      font-weight: 600;
+      gap: 0.35rem;
+    }
+    
+    .status-pill-safe {
+      background: rgba(16, 185, 129, 0.1);
+      color: var(--color-safe);
+      border: 1px solid rgba(16, 185, 129, 0.2);
+    }
+    
+    .status-pill-danger {
+      background: rgba(239, 68, 68, 0.1);
+      color: var(--color-danger);
+      border: 1px solid rgba(239, 68, 68, 0.2);
+    }
+    
+    /* Animations */
+    @keyframes pulse {
+      0% {
+        transform: scale(0.95);
+        box-shadow: 0 0 0 0 var(--status-color-glow);
+      }
+      70% {
+        transform: scale(1);
+        box-shadow: 0 0 0 10px rgba(16, 185, 129, 0);
+      }
+      100% {
+        transform: scale(0.95);
+        box-shadow: 0 0 0 0 rgba(16, 185, 129, 0);
+      }
+    }
+    
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(12px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div id="toastBanner" class="toast-banner">
+      <span>⚠️ <b>Mode Demo/Offline:</b> Gagal memuat <code>data.json</code> (kemungkinan masalah CORS atau berkas belum terbentuk di GitHub). Menampilkan data simulasi pemantauan 12 jam terakhir.</span>
+    </div>
+
+    <header>
+      <div class="logo-area">
+        <h1>🏦 Pemantau Brankas Uang</h1>
+        <p>Sistem Keamanan Real-Time Terintegrasi IoT & Telegram</p>
+      </div>
+      <div class="action-area">
+        <button id="refreshBtn" class="btn" onclick="fetchSensorData()">
+          🔄 Refresh Data
+        </button>
+      </div>
+    </header>
+
+    <!-- Stats Grid -->
+    <div class="stats-grid">
+      <div class="card card-status">
+        <div class="card-label">Status Saat Ini</div>
+        <div class="card-value">
+          <div class="status-badge">
+            <div id="statusPulse" class="pulse-dot"></div>
+            <span id="currentStatusText">Loading...</span>
+          </div>
+        </div>
+        <div class="card-desc" id="statusDesc">Membaca data sensor...</div>
+      </div>
+
+      <div class="card card-safe">
+        <div class="card-label">Kondisi Aman</div>
+        <div class="card-value" id="safeCountText">0</div>
+        <div class="card-desc">Pintu brankas tertutup rapat</div>
+      </div>
+
+      <div class="card card-danger">
+        <div class="card-label">Kondisi Bahaya</div>
+        <div class="card-value" style="color: var(--color-danger)" id="dangerCountText">0</div>
+        <div class="card-desc">Pintu brankas terbuka</div>
+      </div>
+
+      <div class="card">
+        <div class="card-label">Total Pembacaan (12j)</div>
+        <div class="card-value" id="totalCountText">0</div>
+        <div class="card-desc" id="lastUpdatedTimeText">Update terakhir: -</div>
+      </div>
+    </div>
+
+    <!-- Main Grid -->
+    <div class="main-grid">
+      <!-- Chart Panel -->
+      <div class="panel">
+        <div class="panel-header">
+          <div class="panel-title">📈 Grafik Tren Keamanan (12 Jam Terakhir)</div>
+          <div class="chart-info">Interval: 10 menit</div>
+        </div>
+        <div class="chart-container">
+          <canvas id="trendChart"></canvas>
+        </div>
+      </div>
+
+      <!-- Logs Panel -->
+      <div class="panel">
+        <div class="panel-header">
+          <div class="panel-title">📋 Riwayat Aktivitas Brankas</div>
+        </div>
+        <div class="table-container">
+          <table>
+            <thead>
+              <tr>
+                <th>Waktu</th>
+                <th>Status</th>
+                <th>Lokasi</th>
+              </tr>
+            </thead>
+            <tbody id="logsTableBody">
+              <tr>
+                <td colspan="3" style="text-align: center; color: var(--text-muted);">Memuat riwayat aktivitas...</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    let trendChart = null;
+
+    // Menghasilkan data simulasi (Mock) untuk demo offline atau jika CORS/error terjadi
+    function generateMockData() {
+      const mockData = [];
+      const now = new Date();
+      // Total 72 pembacaan (10 menit sekali selama 12 jam)
+      for (let i = 72; i >= 0; i--) {
+        const time = new Date(now.getTime() - i * 10 * 60 * 1000);
+        
+        // Buat beberapa kondisi bahaya (misal brankas terbuka di rentang tertentu)
+        let status = "AMAN";
+        // Simulasi terbuka jam-jam tertentu
+        const hour = time.getHours();
+        const min = time.getMinutes();
+        if ((hour === 2 && min >= 10 && min <= 40) || (hour === 8 && min >= 0 && min <= 20)) {
+          status = "BAHAYA";
+        }
+
+        const timeStr = time.getFullYear() + "-" + 
+                        String(time.getMonth() + 1).padStart(2, '0') + "-" + 
+                        String(time.getDate()).padStart(2, '0') + " " + 
+                        String(time.getHours()).padStart(2, '0') + ":" + 
+                        String(time.getMinutes()).padStart(2, '0') + ":" + 
+                        String(time.getSeconds()).padStart(2, '0') + " WIB";
+        
+        mockData.push({
+          status: status,
+          location: "Brankas Uang",
+          timestamp: timeStr
+        });
+      }
+      return mockData;
+    }
+
+    // Fungsi utama mengambil data
+    async function fetchSensorData() {
+      const refreshBtn = document.getElementById("refreshBtn");
+      refreshBtn.disabled = true;
+      refreshBtn.innerText = "⏳ Memperbarui...";
+      
+      // Konfigurasi repository Anda
+      const githubOwner = "9Syahrul915";
+      const githubRepo = "utssensor";
+      const branch = "main"; // Sesuaikan jika branch utama Anda bernama 'master'
+      
+      // Gunakan URL CDN Raw GitHub dengan cache-buster (?t=...) agar update langsung terbaca begitu commit selesai
+      const rawUrl = `https://raw.githubusercontent.com/${githubOwner}/${githubRepo}/${branch}/data.json?t=${new Date().getTime()}`;
+      
+      try {
+        // Coba ambil langsung dari file mentah GitHub (update instan pasca commit Actions selesai)
+        let response = await fetch(rawUrl);
+        
+        if (!response.ok) {
+          console.log("Gagal memuat raw CDN, mencoba fallback ke ./data.json lokal...");
+          // Jika gagal, coba fallback ke berkas lokal GitHub Pages
+          response = await fetch('./data.json', { cache: 'no-store' });
+        }
+        
+        if (!response.ok) {
+          throw new Error('Gagal memuat file JSON dari seluruh sumber');
+        }
+        
+        const data = await response.json();
+        document.getElementById("toastBanner").style.display = "none";
+        renderDashboard(data);
+      } catch (error) {
+        console.warn("Menggunakan data simulasi karena error:", error);
+        document.getElementById("toastBanner").style.display = "flex";
+        const simulatedData = generateMockData();
+        renderDashboard(simulatedData);
+      } finally {
+        refreshBtn.disabled = false;
+        refreshBtn.innerText = "🔄 Refresh Data";
+      }
+    }
+
+    // Merender seluruh data ke Dashboard
+    function renderDashboard(dataList) {
+      if (!dataList || dataList.length === 0) return;
+
+      // Ambil 72 data terakhir (12 jam)
+      const data12h = dataList.slice(-72);
+      
+      // Update Statistik
+      const latestData = dataList[dataList.length - 1];
+      const safeCount = data12h.filter(d => d.status === "AMAN").length;
+      const dangerCount = data12h.filter(d => d.status === "BAHAYA").length;
+      const totalCount = data12h.length;
+
+      // Render Status Saat Ini
+      const currentStatusText = document.getElementById("currentStatusText");
+      const statusPulse = document.getElementById("statusPulse");
+      const statusDesc = document.getElementById("statusDesc");
+      const r = document.documentElement;
+
+      currentStatusText.innerText = latestData.status;
+      statusDesc.innerText = `Terakhir dicek: ${latestData.timestamp}`;
+
+      if (latestData.status === "AMAN") {
+        currentStatusText.style.color = "var(--color-safe)";
+        r.style.setProperty('--status-color', 'var(--color-safe)');
+        r.style.setProperty('--status-color-glow', 'var(--color-safe-glow)');
+        statusDesc.innerHTML = `🛡️ Pintu Terkunci Aman<br><span style="font-size:0.75rem;color:var(--text-muted)">${latestData.timestamp}</span>`;
+      } else {
+        currentStatusText.style.color = "var(--color-danger)";
+        r.style.setProperty('--status-color', 'var(--color-danger)');
+        r.style.setProperty('--status-color-glow', 'var(--color-danger-glow)');
+        statusDesc.innerHTML = `⚠️ PINTU TERBUKA!<br><span style="font-size:0.75rem;color:var(--color-danger);font-weight:bold">${latestData.timestamp}</span>`;
+      }
+
+      // Update angka statistik
+      document.getElementById("safeCountText").innerText = safeCount;
+      document.getElementById("dangerCountText").innerText = dangerCount;
+      document.getElementById("totalCountText").innerText = totalCount;
+      document.getElementById("lastUpdatedTimeText").innerText = `Update terakhir: ${latestData.timestamp.split(" ")[1] || '-'}`;
+
+      // Render Tabel Riwayat (tampilkan data terbalik, terbaru di atas)
+      const logsTableBody = document.getElementById("logsTableBody");
+      logsTableBody.innerHTML = "";
+      
+      const reversedData = [...dataList].reverse();
+      reversedData.forEach(item => {
+        const row = document.createElement("tr");
+        if (item.status === "BAHAYA") {
+          row.classList.add("row-danger");
+        }
+
+        const isAman = item.status === "AMAN";
+        const statusBadgeHTML = `<span class="status-pill ${isAman ? 'status-pill-safe' : 'status-pill-danger'}">
+          <span style="width:6px;height:6px;border-radius:50%;background-color:${isAman ? 'var(--color-safe)' : 'var(--color-danger)'}"></span>
+          ${item.status}
+        </span>`;
+
+        row.innerHTML = `
+          <td style="font-family:'Outfit',monospace; font-weight:400;">${item.timestamp}</td>
+          <td>${statusBadgeHTML}</td>
+          <td style="color:var(--text-muted)">${item.location}</td>
+        `;
+        logsTableBody.appendChild(row);
+      });
+
+      // Render / Update Chart
+      renderChart(data12h);
+    }
+
+    // Render grafik tren Chart.js
+    function renderChart(data) {
+      const labels = data.map(d => {
+        // Ambil HH:MM dari timestamp
+        const timePart = d.timestamp.split(" ")[1];
+        return timePart ? timePart.substring(0, 5) : "";
+      });
+      
+      // Petakan status ke numerik (AMAN = 1, BAHAYA = 0)
+      const values = data.map(d => d.status === "AMAN" ? 1 : 0);
+
+      const ctx = document.getElementById('trendChart').getContext('2d');
+      
+      if (trendChart) {
+        trendChart.data.labels = labels;
+        trendChart.data.datasets[0].data = values;
+        
+        // Update warna line berdasarkan status terbaru
+        const isLatestAman = data[data.length - 1].status === "AMAN";
+        trendChart.data.datasets[0].borderColor = isLatestAman ? '#10b981' : '#ef4444';
+        trendChart.data.datasets[0].backgroundColor = isLatestAman ? 'rgba(16, 185, 129, 0.1)' : 'rgba(239, 68, 68, 0.1)';
+        
+        trendChart.update();
+        return;
+      }
+
+      const isLatestAman = data[data.length - 1].status === "AMAN";
+
+      trendChart = new Chart(ctx, {
+        type: 'line',
+        data: {
+          labels: labels,
+          datasets: [{
+            label: 'Status Brankas',
+            data: values,
+            stepped: true, // Membuat grafik berundak
+            borderColor: isLatestAman ? '#10b981' : '#ef4444',
+            borderWidth: 3,
+            backgroundColor: isLatestAman ? 'rgba(16, 185, 129, 0.08)' : 'rgba(239, 68, 68, 0.08)',
+            fill: true,
+            tension: 0,
+            pointRadius: 0,
+            pointHoverRadius: 6,
+            pointBackgroundColor: '#ffffff'
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: {
+              display: false
+            },
+            tooltip: {
+              callbacks: {
+                label: function(context) {
+                  return context.parsed.y === 1 ? "Status: AMAN (Tertutup)" : "Status: BAHAYA (Terbuka)";
+                }
+              },
+              backgroundColor: '#0f172a',
+              titleColor: '#9ca3af',
+              bodyColor: '#ffffff',
+              borderColor: 'rgba(255,255,255,0.1)',
+              borderWidth: 1,
+              padding: 10,
+              displayColors: false
+            }
+          },
+          scales: {
+            y: {
+              min: -0.2,
+              max: 1.2,
+              ticks: {
+                stepSize: 1,
+                callback: function(value) {
+                  if (value === 1) return '🛡️ AMAN';
+                  if (value === 0) return '🚨 BAHAYA';
+                  return '';
+                },
+                color: '#9ca3af',
+                font: {
+                  family: 'Plus Jakarta Sans',
+                  weight: '600',
+                  size: 11
+                }
+              },
+              grid: {
+                color: 'rgba(255, 255, 255, 0.04)'
+              }
+            },
+            x: {
+              ticks: {
+                maxTicksLimit: 12,
+                color: '#9ca3af',
+                font: {
+                  family: 'Plus Jakarta Sans',
+                  size: 10
+                }
+              },
+              grid: {
+                color: 'rgba(255, 255, 255, 0.02)'
+              }
+            }
+          }
+        }
+      });
+    }
+
+    // Panggil saat awal load halaman
+    window.addEventListener('load', fetchSensorData);
+    
+    // Auto-refresh data setiap 1 menit
+    setInterval(fetchSensorData, 60000);
+  </script>
+</body>
+</html>

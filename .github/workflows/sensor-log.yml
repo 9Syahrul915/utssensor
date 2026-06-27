@@ -1,0 +1,72 @@
+name: 📝 Sensor Logging to GitHub Cloud
+
+on:
+  repository_dispatch:
+    types: [sensor-alert]
+  workflow_dispatch:
+    inputs:
+      status:
+        description: 'Status Sensor'
+        required: true
+        default: 'AMAN'
+      location:
+        description: 'Lokasi Sensor'
+        required: true
+        default: 'Brankas Uang'
+      timestamp:
+        description: 'Waktu Deteksi'
+        required: false
+        default: ''
+
+jobs:
+  log-data:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      
+    steps:
+      - name: 📥 Checkout repository
+        uses: actions/checkout@v3
+        with:
+          persist-credentials: true
+          
+      - name: 📝 Update data.json
+        run: |
+          # Dapatkan data dari dispatch atau workflow_dispatch
+          if [ "${{ github.event_name }}" = "repository_dispatch" ]; then
+            STATUS="${{ github.event.client_payload.status }}"
+            LOCATION="${{ github.event.client_payload.location }}"
+            TIMESTAMP="${{ github.event.client_payload.timestamp }}"
+          else
+            STATUS="${{ github.event.inputs.status }}"
+            LOCATION="${{ github.event.inputs.location }}"
+            TIMESTAMP="${{ github.event.inputs.timestamp }}"
+            if [ -z "$TIMESTAMP" ]; then
+              # Jika timestamp kosong, gunakan waktu saat ini (WIB)
+              TIMESTAMP=$(TZ="Asia/Jakarta" date '+%Y-%m-%d %H:%M:%S WIB')
+            fi
+          fi
+          
+          echo "Logging sensor data: Status=$STATUS, Location=$LOCATION, Timestamp=$TIMESTAMP"
+          
+          # Buat file data.json jika belum ada
+          if [ ! -f data.json ] || [ ! -s data.json ]; then
+            echo "[]" > data.json
+          fi
+          
+          # Tambahkan entri baru dan simpan 100 entri terbaru saja (12 jam pemantauan)
+          jq --arg status "$STATUS" \
+             --arg location "$LOCATION" \
+             --arg timestamp "$TIMESTAMP" \
+             '. + [{"status": $status, "location": $location, "timestamp": $timestamp}] | .[-100:]' \
+             data.json > temp.json && mv temp.json data.json
+             
+          cat data.json
+
+      - name: 🚀 Commit & Push log data
+        run: |
+          git config --local user.email "github-actions[bot]@users.noreply.github.com"
+          git config --local user.name "github-actions[bot]"
+          git add data.json
+          git commit -m "Update sensor log: ${{ github.event.client_payload.status || github.event.inputs.status }} [skip ci]" || exit 0
+          git push
