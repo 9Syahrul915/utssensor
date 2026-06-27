@@ -4,8 +4,8 @@
 #include <time.h>
 
 // ============ KONFIGURASI WiFi ============
-const char* WIFI_SSID     = "py";
-const char* WIFI_PASSWORD  = "11111111";
+const char* WIFI_SSID     = "";
+const char* WIFI_PASSWORD  = "";
 
 // ============ KONFIGURASI GITHUB ============
 const char* GITHUB_TOKEN   = "tokengithub";
