@@ -569,7 +569,14 @@
 
       // Merender seluruh data ke Dashboard
       function renderDashboard(dataList) {
-        if (!dataList || dataList.length === 0) return;
+        if (!dataList || dataList.length === 0) {
+          document.getElementById("currentStatusText").innerText = "Menunggu Data";
+          document.getElementById("statusDesc").innerText = "Hubungkan sensor untuk mulai mengirim data.";
+          document.getElementById("safeCountText").innerText = "0";
+          document.getElementById("dangerCountText").innerText = "0";
+          document.getElementById("totalCountText").innerText = "0";
+          return;
+        }
 
         // Ambil 72 data terakhir (12 jam)
         const data12h = dataList.slice(-72);
@@ -650,12 +657,17 @@
 
         // Petakan status ke numerik (AMAN = 1, BAHAYA = 0)
         const values = data.map((d) => (d.status === "AMAN" ? 1 : 0));
+        
+        // Petakan warna titik data (Hijau = AMAN, Merah = BAHAYA)
+        const pointColors = data.map((d) => (d.status === "AMAN" ? "#10b981" : "#ef4444"));
 
         const ctx = document.getElementById("trendChart").getContext("2d");
 
         if (trendChart) {
           trendChart.data.labels = labels;
           trendChart.data.datasets[0].data = values;
+          trendChart.data.datasets[0].pointBackgroundColor = pointColors;
+          trendChart.data.datasets[0].pointBorderColor = pointColors;
 
           // Update warna line berdasarkan status terbaru
           const isLatestAman = data[data.length - 1].status === "AMAN";
@@ -680,17 +692,18 @@
               {
                 label: "Status Brankas",
                 data: values,
-                stepped: true, // Membuat grafik berundak
+                stepped: false, // Menampilkan garis transisi langsung
                 borderColor: isLatestAman ? "#10b981" : "#ef4444",
                 borderWidth: 3,
                 backgroundColor: isLatestAman
                   ? "rgba(16, 185, 129, 0.08)"
                   : "rgba(239, 68, 68, 0.08)",
                 fill: true,
-                tension: 0,
-                pointRadius: 0,
-                pointHoverRadius: 6,
-                pointBackgroundColor: "#ffffff",
+                tension: 0.1, // Garis tegas antar titik
+                pointRadius: 5, // Tampilkan titik interval
+                pointHoverRadius: 7,
+                pointBackgroundColor: pointColors,
+                pointBorderColor: pointColors,
               },
             ],
           },
