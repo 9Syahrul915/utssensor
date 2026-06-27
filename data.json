@@ -128,5 +128,10 @@
     "status": "BAHAYA",
     "location": "Brankas Uang",
     "timestamp": "2026-06-27 16:34:39 WIB"
+  },
+  {
+    "status": "AMAN",
+    "location": "Brankas Uang",
+    "timestamp": "2026-06-27 16:44:40 WIB"
   }
 ]
