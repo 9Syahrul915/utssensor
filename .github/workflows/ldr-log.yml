@@ -1,0 +1,74 @@
+name: 📝 LDR Sensor Logging to GitHub Cloud
+
+on:
+  repository_dispatch:
+    types: [ldr-alert]
+  workflow_dispatch:
+    inputs:
+      status:
+        description: 'Status Sensor'
+        required: true
+        default: 'Terang'
+      location:
+        description: 'Lokasi Sensor'
+        required: true
+        default: 'Brankas Uang LDR'
+      timestamp:
+        description: 'Waktu Deteksi'
+        required: false
+        default: ''
+
+jobs:
+  log-data:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      
+    steps:
+      - name: 📥 Checkout repository
+        uses: actions/checkout@v3
+        with:
+          persist-credentials: true
+          
+      - name: 📝 Update ldr_sensor/data.json
+        run: |
+          # Dapatkan data dari dispatch atau workflow_dispatch
+          if [ "${{ github.event_name }}" = "repository_dispatch" ]; then
+            STATUS="${{ github.event.client_payload.status }}"
+            LOCATION="${{ github.event.client_payload.location }}"
+            TIMESTAMP="${{ github.event.client_payload.timestamp }}"
+          else
+            STATUS="${{ github.event.inputs.status }}"
+            LOCATION="${{ github.event.inputs.location }}"
+            TIMESTAMP="${{ github.event.inputs.timestamp }}"
+            if [ -z "$TIMESTAMP" ]; then
+              TIMESTAMP=$(TZ="Asia/Jakarta" date '+%Y-%m-%d %H:%M:%S WIB')
+            fi
+          fi
+          
+          echo "Logging LDR data: Status=$STATUS, Location=$LOCATION, Timestamp=$TIMESTAMP"
+          
+          # Buat folder jika belum ada
+          mkdir -p ldr_sensor
+          
+          # Buat file data.json jika belum ada
+          if [ ! -f ldr_sensor/data.json ] || [ ! -s ldr_sensor/data.json ]; then
+            echo "[]" > ldr_sensor/data.json
+          fi
+          
+          # Tambahkan entri baru dan simpan 100 entri terbaru saja (12 jam pemantauan LDR)
+          jq --arg status "$STATUS" \
+             --arg location "$LOCATION" \
+             --arg timestamp "$TIMESTAMP" \
+             '. + [{"status": $status, "location": $location, "timestamp": $timestamp}] | .[-100:]' \
+             ldr_sensor/data.json > ldr_sensor/temp.json && mv ldr_sensor/temp.json ldr_sensor/data.json
+             
+          cat ldr_sensor/data.json
+
+      - name: 🚀 Commit & Push log data
+        run: |
+          git config --local user.email "github-actions[bot]@users.noreply.github.com"
+          git config --local user.name "github-actions[bot]"
+          git add ldr_sensor/data.json
+          git commit -m "Update LDR log: ${{ github.event.client_payload.status || github.event.inputs.status }} [skip ci]" || exit 0
+          git push

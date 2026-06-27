@@ -3,10 +3,10 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>🏦 Pemantau Brankas Uang - Dashboard Keamanan</title>
+    <title>🌸 Pemantau Brankas Uang - Dashboard Sakura</title>
     <meta
       name="description"
-      content="Dashboard real-time pemantauan status brankas uang menggunakan sensor infrared dan ESP32."
+      content="Dashboard real-time pemantauan status cahaya brankas menggunakan sensor LDR, ESP32 dan GitHub."
     />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -16,20 +16,32 @@
     />
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
-      /* Styling resets & variables */
+      /* Sakura Dark Theme styling */
       :root {
-        --bg-color: #080b11;
-        --panel-bg: rgba(17, 24, 39, 0.6);
-        --panel-border: rgba(255, 255, 255, 0.08);
-        --text-main: #f3f4f6;
-        --text-muted: #9ca3af;
-        --color-safe: #10b981;
-        --color-safe-glow: rgba(16, 185, 129, 0.2);
-        --color-danger: #ef4444;
-        --color-danger-glow: rgba(239, 68, 68, 0.25);
-        --color-primary: #3b82f6;
-        --status-color: var(--color-safe);
-        --status-color-glow: var(--color-safe-glow);
+        --bg-color: #120917;
+        --panel-bg: rgba(28, 15, 36, 0.55);
+        --panel-border: rgba(244, 143, 177, 0.16); /* Soft Pink Border */
+        --text-main: #fff0f5; /* Lavender Blush */
+        --text-muted: #cfa8c3; /* Dusty Rose */
+
+        --color-primary: #ffb7b2; /* Sakura Pink */
+        --color-primary-glow: rgba(255, 183, 178, 0.2);
+
+        /* LDR Status colors */
+        --color-gelap: #ff8b94; /* Soft Coral Red (Bahaya) */
+        --color-gelap-glow: rgba(255, 139, 148, 0.25);
+
+        --color-remang: #ffd3b6; /* Soft Peach (Warning) */
+        --color-remang-glow: rgba(255, 211, 182, 0.2);
+
+        --color-terang: #d6c7ea; /* Soft Lavender (Aman) */
+        --color-terang-glow: rgba(214, 199, 234, 0.15);
+
+        --color-sangat-terang: #b2f5ea; /* Soft Mint/Teal (Aman) */
+        --color-sangat-terang-glow: rgba(178, 245, 234, 0.2);
+
+        --status-color: var(--color-terang);
+        --status-color-glow: var(--color-terang-glow);
       }
 
       * {
@@ -47,13 +59,18 @@
         background-image:
           radial-gradient(
             circle at 10% 20%,
-            rgba(59, 130, 246, 0.06) 0%,
+            rgba(244, 143, 177, 0.08) 0%,
             transparent 40%
           ),
           radial-gradient(
             circle at 90% 80%,
-            rgba(239, 68, 68, 0.04) 0%,
+            rgba(214, 188, 250, 0.06) 0%,
             transparent 40%
+          ),
+          radial-gradient(
+            circle at 50% 50%,
+            rgba(255, 182, 193, 0.02) 0%,
+            transparent 50%
           );
         background-attachment: fixed;
       }
@@ -80,6 +97,8 @@
         font-size: 1.8rem;
         font-weight: 700;
         letter-spacing: -0.02em;
+        color: var(--color-primary);
+        text-shadow: 0 0 10px rgba(255, 183, 178, 0.3);
         display: flex;
         align-items: center;
         gap: 0.75rem;
@@ -98,11 +117,11 @@
       }
 
       .btn {
-        background: rgba(255, 255, 255, 0.05);
+        background: rgba(244, 143, 177, 0.08);
         border: 1px solid var(--panel-border);
-        color: var(--text-main);
+        color: var(--color-primary);
         padding: 0.6rem 1.2rem;
-        border-radius: 8px;
+        border-radius: 12px;
         font-weight: 600;
         font-size: 0.875rem;
         cursor: pointer;
@@ -113,18 +132,19 @@
       }
 
       .btn:hover {
-        background: rgba(255, 255, 255, 0.1);
-        border-color: rgba(255, 255, 255, 0.2);
+        background: rgba(244, 143, 177, 0.15);
+        border-color: rgba(255, 183, 178, 0.4);
         transform: translateY(-1px);
+        box-shadow: 0 0 12px rgba(255, 183, 178, 0.25);
       }
 
       .toast-banner {
         display: none;
-        background: rgba(245, 158, 11, 0.12);
-        border: 1px solid rgba(245, 158, 11, 0.25);
-        color: #fbbf24;
+        background: rgba(255, 183, 178, 0.1);
+        border: 1px solid rgba(255, 183, 178, 0.25);
+        color: var(--color-primary);
         padding: 0.75rem 1.25rem;
-        border-radius: 10px;
+        border-radius: 12px;
         margin-bottom: 1.5rem;
         font-size: 0.875rem;
         align-items: center;
@@ -144,7 +164,7 @@
         background: var(--panel-bg);
         backdrop-filter: blur(12px);
         border: 1px solid var(--panel-border);
-        border-radius: 16px;
+        border-radius: 20px;
         padding: 1.5rem;
         transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
         position: relative;
@@ -163,8 +183,8 @@
 
       .card:hover {
         transform: translateY(-4px);
-        box-shadow: 0 10px 20px rgba(0, 0, 0, 0.2);
-        border-color: rgba(255, 255, 255, 0.15);
+        box-shadow: 0 10px 22px rgba(28, 15, 36, 0.4);
+        border-color: rgba(244, 143, 177, 0.3);
       }
 
       .card-label {
@@ -183,6 +203,7 @@
         display: flex;
         align-items: center;
         gap: 0.5rem;
+        color: var(--color-primary);
       }
 
       .card-desc {
@@ -196,12 +217,12 @@
         background: var(--status-color);
       }
 
-      .card-safe::before {
-        background: var(--color-safe);
+      .card-danger::before {
+        background: var(--color-gelap);
       }
 
-      .card-danger::before {
-        background: var(--color-danger);
+      .card-safe::before {
+        background: var(--color-terang);
       }
 
       .status-badge {
@@ -211,6 +232,8 @@
         font-size: 1.75rem;
         font-weight: 700;
         letter-spacing: 0.02em;
+        color: var(--status-color);
+        text-shadow: 0 0 10px var(--status-color-glow);
       }
 
       .pulse-dot {
@@ -239,7 +262,7 @@
         background: var(--panel-bg);
         backdrop-filter: blur(12px);
         border: 1px solid var(--panel-border);
-        border-radius: 20px;
+        border-radius: 24px;
         padding: 1.75rem;
       }
 
@@ -248,7 +271,7 @@
         justify-content: space-between;
         align-items: center;
         margin-bottom: 1.5rem;
-        border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+        border-bottom: 1px solid rgba(244, 143, 177, 0.08);
         padding-bottom: 1rem;
       }
 
@@ -259,6 +282,7 @@
         display: flex;
         align-items: center;
         gap: 0.5rem;
+        color: var(--color-primary);
       }
 
       .chart-info {
@@ -290,28 +314,28 @@
         color: var(--text-muted);
         font-weight: 600;
         padding: 0.75rem 1rem;
-        border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        border-bottom: 1px solid rgba(244, 143, 177, 0.15);
         position: sticky;
         top: 0;
-        background: #0d121c;
+        background: #190e21;
         z-index: 1;
       }
 
       td {
         padding: 0.85rem 1rem;
-        border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+        border-bottom: 1px solid rgba(244, 143, 177, 0.06);
       }
 
       tr:hover td {
-        background: rgba(255, 255, 255, 0.01);
+        background: rgba(255, 182, 193, 0.02);
       }
 
       .row-danger {
-        background: rgba(239, 68, 68, 0.05);
+        background: rgba(255, 139, 148, 0.05);
       }
 
       .row-danger:hover td {
-        background: rgba(239, 68, 68, 0.08) !important;
+        background: rgba(255, 139, 148, 0.08) !important;
       }
 
       .status-pill {
@@ -324,16 +348,28 @@
         gap: 0.35rem;
       }
 
-      .status-pill-safe {
-        background: rgba(16, 185, 129, 0.1);
-        color: var(--color-safe);
-        border: 1px solid rgba(16, 185, 129, 0.2);
+      .status-pill-gelap {
+        background: rgba(255, 139, 148, 0.1);
+        color: var(--color-gelap);
+        border: 1px solid rgba(255, 139, 148, 0.2);
       }
 
-      .status-pill-danger {
-        background: rgba(239, 68, 68, 0.1);
-        color: var(--color-danger);
-        border: 1px solid rgba(239, 68, 68, 0.2);
+      .status-pill-remang {
+        background: rgba(255, 211, 182, 0.1);
+        color: var(--color-remang);
+        border: 1px solid rgba(255, 211, 182, 0.2);
+      }
+
+      .status-pill-terang {
+        background: rgba(214, 199, 234, 0.1);
+        color: var(--color-terang);
+        border: 1px solid rgba(214, 199, 234, 0.2);
+      }
+
+      .status-pill-sangat-terang {
+        background: rgba(178, 245, 234, 0.1);
+        color: var(--color-sangat-terang);
+        border: 1px solid rgba(178, 245, 234, 0.2);
       }
 
       /* Animations */
@@ -344,11 +380,11 @@
         }
         70% {
           transform: scale(1);
-          box-shadow: 0 0 0 10px rgba(16, 185, 129, 0);
+          box-shadow: 0 0 0 10px rgba(255, 183, 178, 0);
         }
         100% {
           transform: scale(0.95);
-          box-shadow: 0 0 0 0 rgba(16, 185, 129, 0);
+          box-shadow: 0 0 0 0 rgba(255, 183, 178, 0);
         }
       }
 
@@ -368,17 +404,16 @@
     <div class="container">
       <div id="toastBanner" class="toast-banner">
         <span
-          >⚠️ <b>Mode Demo/Offline:</b> Gagal memuat
-          <code>data.json</code> (kemungkinan masalah CORS atau berkas belum
-          terbentuk di GitHub). Menampilkan data simulasi pemantauan 12 jam
-          terakhir.</span
+          >🌸 <b>Mode Demo Sakura:</b> Gagal memuat
+          <code>data.json</code> secara real-time. Menampilkan simulasi data
+          pemantauan LDR 12 jam terakhir.</span
         >
       </div>
 
       <header>
         <div class="logo-area">
-          <h1>🏦 Pemantau Brankas Uang</h1>
-          <p>Sistem Keamanan Real-Time Terintegrasi IoT & Telegram</p>
+          <h1>🌸 Pemantau Brankas Uang</h1>
+          <p>Sistem Keamanan Deteksi Cahaya LDR Terintegrasi IoT & Telegram</p>
         </div>
         <div class="action-area">
           <button id="refreshBtn" class="btn" onclick="fetchSensorData()">
@@ -390,7 +425,7 @@
       <!-- Stats Grid -->
       <div class="stats-grid">
         <div class="card card-status">
-          <div class="card-label">Status Saat Ini</div>
+          <div class="card-label">Kondisi Cahaya</div>
           <div class="card-value">
             <div class="status-badge">
               <div id="statusPulse" class="pulse-dot"></div>
@@ -400,22 +435,28 @@
           <div class="card-desc" id="statusDesc">Membaca data sensor...</div>
         </div>
 
-        <div class="card card-safe">
-          <div class="card-label">Kondisi Aman</div>
-          <div class="card-value" id="safeCountText">0</div>
-          <div class="card-desc">Pintu brankas tertutup rapat</div>
-        </div>
-
         <div class="card card-danger">
-          <div class="card-label">Kondisi Bahaya</div>
+          <div class="card-label">Total Gelap (Bahaya)</div>
           <div
             class="card-value"
-            style="color: var(--color-danger)"
+            style="color: var(--color-gelap)"
             id="dangerCountText"
           >
             0
           </div>
-          <div class="card-desc">Pintu brankas terbuka</div>
+          <div class="card-desc">Keadaan brankas ditutup rapat</div>
+        </div>
+
+        <div class="card card-safe">
+          <div class="card-label">Kondisi Aman</div>
+          <div
+            class="card-value"
+            style="color: var(--color-terang)"
+            id="safeCountText"
+          >
+            0
+          </div>
+          <div class="card-desc">Remang / Terang / Sangat Terang</div>
         </div>
 
         <div class="card">
@@ -432,9 +473,7 @@
         <!-- Chart Panel -->
         <div class="panel">
           <div class="panel-header">
-            <div class="panel-title">
-              📈 Grafik Tren Keamanan (12 Jam Terakhir)
-            </div>
+            <div class="panel-title">📈 Grafik Tingkat Cahaya LDR (12 Jam)</div>
             <div class="chart-info">Interval: 10 menit</div>
           </div>
           <div class="chart-container">
@@ -445,7 +484,7 @@
         <!-- Logs Panel -->
         <div class="panel">
           <div class="panel-header">
-            <div class="panel-title">📋 Riwayat Aktivitas Brankas</div>
+            <div class="panel-title">📋 Riwayat Aktivitas Sensor</div>
           </div>
           <div class="table-container">
             <table>
@@ -475,7 +514,7 @@
     <script>
       let trendChart = null;
 
-      // Menghasilkan data simulasi (Mock) untuk demo offline atau jika CORS/error terjadi
+      // Menghasilkan data simulasi LDR (4 level) untuk demo
       function generateMockData() {
         const mockData = [];
         const now = new Date();
@@ -483,16 +522,19 @@
         for (let i = 72; i >= 0; i--) {
           const time = new Date(now.getTime() - i * 10 * 60 * 1000);
 
-          // Buat beberapa kondisi bahaya (misal brankas terbuka di rentang tertentu)
-          let status = "AMAN";
-          // Simulasi terbuka jam-jam tertentu
+          let status = "Terang";
           const hour = time.getHours();
           const min = time.getMinutes();
-          if (
-            (hour === 2 && min >= 10 && min <= 40) ||
-            (hour === 8 && min >= 0 && min <= 20)
-          ) {
-            status = "BAHAYA";
+
+          // Simulasikan pola kecerahan harian yang berulang
+          if (hour >= 20 || hour < 5 || (hour === 14 && min <= 40)) {
+            status = "Gelap"; // Malam hari / disimulasikan brankas tertutup
+          } else if (hour === 5 || hour === 6 || hour === 18 || hour === 19) {
+            status = "Remang-remang"; // Fajar / senja
+          } else if (hour >= 11 && hour <= 13) {
+            status = "Sangat Terang"; // Siang hari
+          } else {
+            status = "Terang"; // Pagi / sore
           }
 
           const timeStr =
@@ -511,22 +553,22 @@
 
           mockData.push({
             status: status,
-            location: "Brankas Uang",
+            location: "Brankas Uang LDR",
             timestamp: timeStr,
           });
         }
         return mockData;
       }
 
-      // Fungsi utama mengambil data
+      // Fungsi mengambil data
       async function fetchSensorData() {
         const refreshBtn = document.getElementById("refreshBtn");
         refreshBtn.disabled = true;
         refreshBtn.innerText = "⏳ Memperbarui...";
 
         // Deteksi dinamis owner & repo dari URL GitHub Pages agar bersifat portabel
-        let githubOwner = "9Syahrul915";
-        let githubRepo = "utssensor";
+        let githubOwner = "byyaja";
+        let githubRepo = "unyil";
         const branch = "main"; // Sesuaikan jika branch utama Anda bernama 'master'
 
         if (window.location.hostname.includes(".github.io")) {
@@ -535,22 +577,21 @@
         }
 
         // Gunakan URL CDN Raw GitHub dengan cache-buster (?t=...) agar update langsung terbaca begitu commit selesai
-        const rawUrl = `https://raw.githubusercontent.com/${githubOwner}/${githubRepo}/${branch}/data.json?t=${new Date().getTime()}`;
+        const rawUrl = `https://raw.githubusercontent.com/${githubOwner}/${githubRepo}/${branch}/ldr_sensor/data.json?t=${new Date().getTime()}`;
 
         try {
-          // Coba ambil langsung dari file mentah GitHub (update instan pasca commit Actions selesai)
           let response = await fetch(rawUrl);
 
           if (!response.ok) {
             console.log(
               "Gagal memuat raw CDN, mencoba fallback ke ./data.json lokal...",
             );
-            // Jika gagal, coba fallback ke berkas lokal GitHub Pages
+            // Falls back to local data.json which is inside the ldr_sensor folder
             response = await fetch("./data.json", { cache: "no-store" });
           }
 
           if (!response.ok) {
-            throw new Error("Gagal memuat file JSON dari seluruh sumber");
+            throw new Error("Gagal memuat data");
           }
 
           const data = await response.json();
@@ -567,17 +608,26 @@
         }
       }
 
-      // Merender seluruh data ke Dashboard
+      // Merender data ke Dashboard
       function renderDashboard(dataList) {
-        if (!dataList || dataList.length === 0) return;
+        if (!dataList || dataList.length === 0) {
+          document.getElementById("currentStatusText").innerText =
+            "Menunggu Data";
+          document.getElementById("statusDesc").innerText =
+            "Hubungkan sensor untuk mulai mengirim data.";
+          document.getElementById("safeCountText").innerText = "0";
+          document.getElementById("dangerCountText").innerText = "0";
+          document.getElementById("totalCountText").innerText = "0";
+          return;
+        }
 
         // Ambil 72 data terakhir (12 jam)
         const data12h = dataList.slice(-72);
 
         // Update Statistik
         const latestData = dataList[dataList.length - 1];
-        const safeCount = data12h.filter((d) => d.status === "AMAN").length;
-        const dangerCount = data12h.filter((d) => d.status === "BAHAYA").length;
+        const dangerCount = data12h.filter((d) => d.status === "Gelap").length; // Gelap = Bahaya
+        const safeCount = data12h.filter((d) => d.status !== "Gelap").length; // Remang/Terang/Sangat Terang = Aman
         const totalCount = data12h.length;
 
         // Render Status Saat Ini
@@ -589,19 +639,31 @@
         currentStatusText.innerText = latestData.status;
         statusDesc.innerText = `Terakhir dicek: ${latestData.timestamp}`;
 
-        if (latestData.status === "AMAN") {
-          currentStatusText.style.color = "var(--color-safe)";
-          r.style.setProperty("--status-color", "var(--color-safe)");
-          r.style.setProperty("--status-color-glow", "var(--color-safe-glow)");
-          statusDesc.innerHTML = `🛡️ Pintu Terkunci Aman<br><span style="font-size:0.75rem;color:var(--text-muted)">${latestData.timestamp}</span>`;
-        } else {
-          currentStatusText.style.color = "var(--color-danger)";
-          r.style.setProperty("--status-color", "var(--color-danger)");
+        if (latestData.status === "Gelap") {
+          r.style.setProperty("--status-color", "var(--color-gelap)");
+          r.style.setProperty("--status-color-glow", "var(--color-gelap-glow)");
+          statusDesc.innerHTML = `🚨 BAHAYA: Kondisi Gelap<br><span style="font-size:0.75rem;color:var(--text-muted)">${latestData.timestamp}</span>`;
+        } else if (latestData.status === "Remang-remang") {
+          r.style.setProperty("--status-color", "var(--color-remang)");
           r.style.setProperty(
             "--status-color-glow",
-            "var(--color-danger-glow)",
+            "var(--color-remang-glow)",
           );
-          statusDesc.innerHTML = `⚠️ PINTU TERBUKA!<br><span style="font-size:0.75rem;color:var(--color-danger);font-weight:bold">${latestData.timestamp}</span>`;
+          statusDesc.innerHTML = `🌗 AMAN: Remang-remang<br><span style="font-size:0.75rem;color:var(--text-muted)">${latestData.timestamp}</span>`;
+        } else if (latestData.status === "Terang") {
+          r.style.setProperty("--status-color", "var(--color-terang)");
+          r.style.setProperty(
+            "--status-color-glow",
+            "var(--color-terang-glow)",
+          );
+          statusDesc.innerHTML = `☀️ AMAN: Kondisi Terang<br><span style="font-size:0.75rem;color:var(--text-muted)">${latestData.timestamp}</span>`;
+        } else {
+          r.style.setProperty("--status-color", "var(--color-sangat-terang)");
+          r.style.setProperty(
+            "--status-color-glow",
+            "var(--color-sangat-terang-glow)",
+          );
+          statusDesc.innerHTML = `⚡ AMAN: Sangat Terang<br><span style="font-size:0.75rem;color:var(--text-muted)">${latestData.timestamp}</span>`;
         }
 
         // Update angka statistik
@@ -611,20 +673,33 @@
         document.getElementById("lastUpdatedTimeText").innerText =
           `Update terakhir: ${latestData.timestamp.split(" ")[1] || "-"}`;
 
-        // Render Tabel Riwayat (tampilkan data terbalik, terbaru di atas)
+        // Render Tabel Riwayat (terbaru di atas)
         const logsTableBody = document.getElementById("logsTableBody");
         logsTableBody.innerHTML = "";
 
         const reversedData = [...dataList].reverse();
         reversedData.forEach((item) => {
           const row = document.createElement("tr");
-          if (item.status === "BAHAYA") {
+          if (item.status === "Gelap") {
             row.classList.add("row-danger");
           }
 
-          const isAman = item.status === "AMAN";
-          const statusBadgeHTML = `<span class="status-pill ${isAman ? "status-pill-safe" : "status-pill-danger"}">
-          <span style="width:6px;height:6px;border-radius:50%;background-color:${isAman ? "var(--color-safe)" : "var(--color-danger)"}"></span>
+          let statusClass = "status-pill-terang";
+          if (item.status === "Gelap") statusClass = "status-pill-gelap";
+          else if (item.status === "Remang-remang")
+            statusClass = "status-pill-remang";
+          else if (item.status === "Sangat Terang")
+            statusClass = "status-pill-sangat-terang";
+
+          let dotColor = "var(--color-terang)";
+          if (item.status === "Gelap") dotColor = "var(--color-gelap)";
+          else if (item.status === "Remang-remang")
+            dotColor = "var(--color-remang)";
+          else if (item.status === "Sangat Terang")
+            dotColor = "var(--color-sangat-terang)";
+
+          const statusBadgeHTML = `<span class="status-pill ${statusClass}">
+          <span style="width:6px;height:6px;border-radius:50%;background-color:${dotColor}"></span>
           ${item.status}
         </span>`;
 
@@ -636,20 +711,24 @@
           logsTableBody.appendChild(row);
         });
 
-        // Render / Update Chart
+        // Render Chart
         renderChart(data12h);
       }
 
-      // Render grafik tren Chart.js
+      // Render grafik tren kecerahan (4 tingkatan)
       function renderChart(data) {
         const labels = data.map((d) => {
-          // Ambil HH:MM dari timestamp
           const timePart = d.timestamp.split(" ")[1];
           return timePart ? timePart.substring(0, 5) : "";
         });
 
-        // Petakan status ke numerik (AMAN = 1, BAHAYA = 0)
-        const values = data.map((d) => (d.status === "AMAN" ? 1 : 0));
+        // Petakan status ke numerik (Gelap = 0, Remang-remang = 1, Terang = 2, Sangat Terang = 3)
+        const values = data.map((d) => {
+          if (d.status === "Gelap") return 0;
+          if (d.status === "Remang-remang") return 1;
+          if (d.status === "Terang") return 2;
+          return 3;
+        });
 
         const ctx = document.getElementById("trendChart").getContext("2d");
 
@@ -657,20 +736,25 @@
           trendChart.data.labels = labels;
           trendChart.data.datasets[0].data = values;
 
-          // Update warna line berdasarkan status terbaru
-          const isLatestAman = data[data.length - 1].status === "AMAN";
-          trendChart.data.datasets[0].borderColor = isLatestAman
-            ? "#10b981"
-            : "#ef4444";
-          trendChart.data.datasets[0].backgroundColor = isLatestAman
-            ? "rgba(16, 185, 129, 0.1)"
-            : "rgba(239, 68, 68, 0.1)";
+          // Sesuaikan warna grafik dengan status terbaru
+          const latestVal = values[values.length - 1];
+          let color = "#d6c7ea";
+          if (latestVal === 0) color = "#ff8b94";
+          else if (latestVal === 1) color = "#ffd3b6";
+          else if (latestVal === 3) color = "#b2f5ea";
+
+          trendChart.data.datasets[0].borderColor = color;
+          trendChart.data.datasets[0].backgroundColor = color + "14"; // transparan fill
 
           trendChart.update();
           return;
         }
 
-        const isLatestAman = data[data.length - 1].status === "AMAN";
+        const latestVal = values[values.length - 1];
+        let initialColor = "#d6c7ea";
+        if (latestVal === 0) initialColor = "#ff8b94";
+        else if (latestVal === 1) initialColor = "#ffd3b6";
+        else if (latestVal === 3) initialColor = "#b2f5ea";
 
         trendChart = new Chart(ctx, {
           type: "line",
@@ -678,14 +762,12 @@
             labels: labels,
             datasets: [
               {
-                label: "Status Brankas",
+                label: "Tingkat Cahaya",
                 data: values,
-                stepped: true, // Membuat grafik berundak
-                borderColor: isLatestAman ? "#10b981" : "#ef4444",
+                stepped: true, // Garis berundak
+                borderColor: initialColor,
                 borderWidth: 3,
-                backgroundColor: isLatestAman
-                  ? "rgba(16, 185, 129, 0.08)"
-                  : "rgba(239, 68, 68, 0.08)",
+                backgroundColor: initialColor + "10",
                 fill: true,
                 tension: 0,
                 pointRadius: 0,
@@ -704,15 +786,17 @@
               tooltip: {
                 callbacks: {
                   label: function (context) {
-                    return context.parsed.y === 1
-                      ? "Status: AMAN (Tertutup)"
-                      : "Status: BAHAYA (Terbuka)";
+                    const val = context.parsed.y;
+                    if (val === 3) return "Status: Sangat Terang (Aman)";
+                    if (val === 2) return "Status: Terang (Aman)";
+                    if (val === 1) return "Status: Remang-remang (Aman)";
+                    return "Status: GELAP (BAHAYA)";
                   },
                 },
-                backgroundColor: "#0f172a",
-                titleColor: "#9ca3af",
-                bodyColor: "#ffffff",
-                borderColor: "rgba(255,255,255,0.1)",
+                backgroundColor: "#1c0f24",
+                titleColor: "#cfa8c3",
+                bodyColor: "#fff0f5",
+                borderColor: "rgba(244,143,177,0.2)",
                 borderWidth: 1,
                 padding: 10,
                 displayColors: false,
@@ -721,36 +805,38 @@
             scales: {
               y: {
                 min: -0.2,
-                max: 1.2,
+                max: 3.2,
                 ticks: {
                   stepSize: 1,
                   callback: function (value) {
-                    if (value === 1) return "🛡️ AMAN";
-                    if (value === 0) return "🚨 BAHAYA";
+                    if (value === 3) return "⚡ S. Terang";
+                    if (value === 2) return "☀️ Terang";
+                    if (value === 1) return "🌗 Remang";
+                    if (value === 0) return "🌑 Gelap (Bahaya)";
                     return "";
                   },
-                  color: "#9ca3af",
+                  color: "#cfa8c3",
                   font: {
                     family: "Plus Jakarta Sans",
                     weight: "600",
-                    size: 11,
+                    size: 10,
                   },
                 },
                 grid: {
-                  color: "rgba(255, 255, 255, 0.04)",
+                  color: "rgba(244, 143, 177, 0.06)",
                 },
               },
               x: {
                 ticks: {
                   maxTicksLimit: 12,
-                  color: "#9ca3af",
+                  color: "#cfa8c3",
                   font: {
                     family: "Plus Jakarta Sans",
                     size: 10,
                   },
                 },
                 grid: {
-                  color: "rgba(255, 255, 255, 0.02)",
+                  color: "rgba(244, 143, 177, 0.03)",
                 },
               },
             },
@@ -761,7 +847,7 @@
       // Panggil saat awal load halaman
       window.addEventListener("load", fetchSensorData);
 
-      // Auto-refresh data setiap 1 menit
+      // Auto-refresh setiap 1 menit
       setInterval(fetchSensorData, 60000);
     </script>
   </body>

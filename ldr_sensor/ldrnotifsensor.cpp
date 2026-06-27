@@ -1,28 +1,28 @@
-#include <WiFi.h>
-#include <HTTPClient.h>
+#include <ESP8266WiFi.h>
+#include <ESP8266HTTPClient.h>
 #include <WiFiClientSecure.h>
 #include <time.h>
 
-#include "secrets.h"
+#include "../secrets.h"
 
 // ============ KONFIGURASI WiFi ============
 const char* WIFI_SSID     = WIFI_SSID_VAL;
 const char* WIFI_PASSWORD  = WIFI_PASSWORD_VAL;
 
-// ============ KONFIGURASI TELEGRAM (LANGSUNG) ============
+// ============ KONFIGURASI TELEGRAM ============
 const char* TELEGRAM_BOT_TOKEN = TELEGRAM_BOT_TOKEN_VAL;
 const char* TELEGRAM_CHAT_ID   = TELEGRAM_CHAT_ID_VAL;
 
-// ============ KONFIGURASI GITHUB (OPSIONAL - UNTUK LOG) ============
-const bool  ENABLE_GITHUB_LOG = true;  // Set false jika tidak mau log ke GitHub
+// ============ KONFIGURASI GITHUB ============
+const bool  ENABLE_GITHUB_LOG = true;
 const char* GITHUB_TOKEN   = GITHUB_TOKEN_VAL;
 const char* GITHUB_OWNER   = GITHUB_OWNER_VAL;
 const char* GITHUB_REPO    = GITHUB_REPO_VAL;
 
-// ============ KONFIGURASI SENSOR ============
-#define IR_SENSOR_PIN   14
-#define LED_INDICATOR   2
-const char* SENSOR_LOCATION  = "Brankas Uang";
+// ============ KONFIGURASI SENSOR LDR ============
+#define LDR_PIN         A0  // ESP8266 hanya memiliki satu pin analog (A0)
+#define LED_INDICATOR   2   // LED onboard ESP8266 (GPIO2 / D4)
+const char* SENSOR_LOCATION  = "Lampu Kamar";
 
 // ============ KONFIGURASI WAKTU ============
 const unsigned long REPORT_INTERVAL_MS = 600000;  // 10 menit (600.000 ms)
@@ -36,9 +36,10 @@ const int   daylightOffset   = 0;
 
 // ============ DEKLARASI FUNGSI ============
 void connectWiFi();
-bool sendTelegramNotification(String status);
+bool sendTelegramNotification(String status, int adcVal);
 bool sendGitHubLog(String status);
 String getFormattedTime();
+String determineStatus(int adcVal);
 
 // ======================================================
 //                        SETUP
@@ -46,21 +47,30 @@ String getFormattedTime();
 void setup() {
   Serial.begin(115200);
   Serial.println("\n==========================================");
-  Serial.println("  ESP32 Sensor IR + Telegram + GitHub");
-  Serial.println("  Mode: Pemantau Keamanan Brankas Uang");
+  Serial.println("  ESP8266 Sensor LDR + Telegram + GitHub");
+  Serial.println("  Mode: Pemantau Cahaya Kamar (4 Level)");
   Serial.println("==========================================");
 
-  pinMode(IR_SENSOR_PIN, INPUT);
   pinMode(LED_INDICATOR, OUTPUT);
-  digitalWrite(LED_INDICATOR, LOW);
+  digitalWrite(LED_INDICATOR, HIGH); // On ESP8266, D4 LED is Active LOW (HIGH = Mati)
 
   connectWiFi();
 
+  // Sinkronisasi Waktu NTP
   configTime(gmtOffset, daylightOffset, ntpServer);
-  Serial.println("⏰ Sinkronisasi waktu...");
-  delay(2000);
+  Serial.print("⏰ Sinkronisasi waktu...");
+  time_t now = time(nullptr);
+  int retry = 0;
+  while (now < 86400 && retry < 30) {
+    delay(500);
+    Serial.print(".");
+    now = time(nullptr);
+    retry++;
+  }
+  Serial.println(" Selesai!");
 
-  Serial.println("✅ Sistem siap! Menunggu deteksi sensor...\n");
+  digitalWrite(LED_INDICATOR, HIGH); // Pastikan mati setelah koneksi sukses
+  Serial.println("✅ Sistem siap! Memulai pemantauan LDR...\n");
 }
 
 // ======================================================
@@ -71,38 +81,40 @@ void loop() {
     connectWiFi();
   }
 
-  int sensorValue = digitalRead(IR_SENSOR_PIN);
-  String currentStatus = (sensorValue == LOW) ? "AMAN" : "BAHAYA";
+  // Baca nilai analog dari sensor LDR (0 - 1023 pada ESP8266)
+  int adcVal = analogRead(LDR_PIN);
+  String currentStatus = determineStatus(adcVal);
 
-  // Set LED Indikator: menyala jika BAHAYA (brankas terbuka), mati jika AMAN (tertutup)
-  if (currentStatus == "BAHAYA") {
-    digitalWrite(LED_INDICATOR, HIGH);
+  // Set LED Indikator: menyala jika GELAP (bahaya), mati jika kondisi aman lainnya
+  // Catatan: LED bawaan ESP8266 D4 adalah Active LOW
+  if (currentStatus == "Gelap") {
+    digitalWrite(LED_INDICATOR, LOW);  // Menyala
   } else {
-    digitalWrite(LED_INDICATOR, LOW);
+    digitalWrite(LED_INDICATOR, HIGH); // Mati
   }
 
   unsigned long now = millis();
 
-  // Deteksi transisi instan dari AMAN ke BAHAYA (pintu dibuka tiba-tiba)
-  bool statusChangedToDanger = (currentStatus == "BAHAYA" && lastStatus == "AMAN");
+  // Deteksi transisi instan ketika kondisi berubah dari aman menjadi GELAP (Bahaya)
+  bool statusChangedToDanger = (currentStatus == "Gelap" && lastStatus != "Gelap" && lastStatus != "UNKNOWN");
 
   if (lastStatus == "UNKNOWN") {
-    // Inisialisasi status awal pada pembacaan pertama
+    // Pembacaan awal
     lastStatus = currentStatus;
-    Serial.printf("📝 Pembacaan awal: %s\n", currentStatus.c_str());
+    Serial.printf("📝 Pembacaan awal LDR: %d (%s)\n", adcVal, currentStatus.c_str());
     if (ENABLE_GITHUB_LOG) {
       sendGitHubLog(currentStatus);
     }
-    if (currentStatus == "BAHAYA") {
-      sendTelegramNotification(currentStatus);
+    if (currentStatus == "Gelap") {
+      sendTelegramNotification(currentStatus, adcVal);
     }
     lastReportTime = now;
   }
   else if (now - lastReportTime >= REPORT_INTERVAL_MS || statusChangedToDanger) {
     if (statusChangedToDanger) {
-      Serial.println("🚨 TRANSISI DETEKSI: Brankas Terbuka! Mengirim peringatan instan...");
+      Serial.printf("🚨 TRANSISI DETEKSI: Kamar Gelap! Nilai ADC: %d. Mengirim peringatan instan...\n", adcVal);
     } else {
-      Serial.printf("⏰ Laporan berkala (10 menit): Brankas %s\n", currentStatus.c_str());
+      Serial.printf("⏰ Laporan berkala LDR (10 menit): %d (%s)\n", adcVal, currentStatus.c_str());
     }
 
     // Kirim log ke GitHub
@@ -115,9 +127,9 @@ void loop() {
       }
     }
 
-    // Kirim Telegram hanya jika BAHAYA
-    if (currentStatus == "BAHAYA") {
-      bool telegramOK = sendTelegramNotification(currentStatus);
+    // Kirim Telegram hanya jika GELAP (Bahaya)
+    if (currentStatus == "Gelap") {
+      bool telegramOK = sendTelegramNotification(currentStatus, adcVal);
       if (telegramOK) {
         Serial.println("✅ Telegram: Notifikasi bahaya terkirim!");
       } else {
@@ -134,36 +146,52 @@ void loop() {
 }
 
 // ======================================================
-//     ⚡ KIRIM NOTIFIKASI LANGSUNG KE TELEGRAM (INSTAN)
+//              FUNGSI KLASIFIKASI CAHAYA (ESP8266 Scale 10-bit)
 // ======================================================
-bool sendTelegramNotification(String status) {
-  if (status != "BAHAYA") {
+String determineStatus(int adcVal) {
+  // Batasan disesuaikan dari skala 12-bit (0-4095) ke 10-bit (0-1023)
+  if (adcVal >= 750) {
+    return "Gelap";
+  } else if (adcVal >= 375) {
+    return "Remang-remang";
+  } else if (adcVal >= 200) {
+    return "Terang";
+  } else {
+    return "Sangat Terang";
+  }
+}
+
+// ======================================================
+//         ⚡ KIRIM NOTIFIKASI TELEGRAM (BAHAYA)
+// ======================================================
+bool sendTelegramNotification(String status, int adcVal) {
+  if (status != "Gelap") {
     return false;
   }
 
-  WiFiClientSecure client;
-  client.setInsecure();
+  std::unique_ptr<BearSSL::WiFiClientSecure> client(new BearSSL::WiFiClientSecure);
+  client->setInsecure();
 
   HTTPClient http;
 
-  String url = "https://api.telegram.org/bot";
+  String url = "http://api.telegram.org/bot";
   url += TELEGRAM_BOT_TOKEN;
   url += "/sendMessage";
 
-  http.begin(client, url);
+  http.begin(*client, url);
   http.addHeader("Content-Type", "application/json");
 
-  // Dapatkan waktu
   String timestamp = getFormattedTime();
 
-  // Buat pesan khusus brankas terbuka
-  String message = "🚨 *PERINGATAN: BRANKAS TERBUKA!*\\n";
+  // Pesan peringatan lampu kamar mati/gelap (bahaya)
+  String message = "🚨 *PERINGATAN: KAMAR GELAP (BAHAYA)!*\\n";
   message += "━━━━━━━━━━━━━━━━━━━━\\n";
-  message += "⚠️ Status: BAHAYA (Pintu Terbuka)\\n";
+  message += "⚠️ Status: GELAP (Bahaya)\\n";
+  message += "📊 Nilai ADC LDR: " + String(adcVal) + " (0-1023)\\n";
   message += "📍 Lokasi: " + String(SENSOR_LOCATION) + "\\n";
   message += "🕐 Waktu: " + timestamp + "\\n";
   message += "━━━━━━━━━━━━━━━━━━━━\\n";
-  message += "🔴 Segera periksa brankas uang Anda!";
+  message += "💡 Sensor mendeteksi lampu mati. Harap periksa kamar!";
 
   // JSON payload
   String payload = "{";
@@ -173,21 +201,17 @@ bool sendTelegramNotification(String status) {
   payload += "}";
 
   int httpCode = http.POST(payload);
-  String response = http.getString();
-
-  Serial.printf("📬 Telegram Response: %d\n", httpCode);
-
   http.end();
 
   return (httpCode == 200);
 }
 
 // ======================================================
-//         📝 LOG DATA KE GITHUB (OPSIONAL)
+//         📝 LOG DATA KE GITHUB DISPATCHES
 // ======================================================
 bool sendGitHubLog(String status) {
-  WiFiClientSecure client;
-  client.setInsecure();
+  std::unique_ptr<BearSSL::WiFiClientSecure> client(new BearSSL::WiFiClientSecure);
+  client->setInsecure();
 
   HTTPClient http;
 
@@ -197,15 +221,16 @@ bool sendGitHubLog(String status) {
   url += GITHUB_REPO;
   url += "/dispatches";
 
-  http.begin(client, url);
+  http.begin(*client, url);
   http.addHeader("Authorization", String("token ") + GITHUB_TOKEN);
   http.addHeader("Accept", "application/vnd.github.v3+json");
+  http.addHeader("User-Agent", "ESP8266-Client");
   http.addHeader("Content-Type", "application/json");
 
   String timestamp = getFormattedTime();
 
   String payload = "{";
-  payload += "\"event_type\":\"sensor-alert\",";
+  payload += "\"event_type\":\"ldr-alert\",";
   payload += "\"client_payload\":{";
   payload += "\"status\":\"" + status + "\",";
   payload += "\"location\":\"" + String(SENSOR_LOCATION) + "\",";
@@ -219,7 +244,7 @@ bool sendGitHubLog(String status) {
 }
 
 // ======================================================
-//              FUNGSI KONEKSI WiFi
+//              KONEKSI WiFi
 // ======================================================
 void connectWiFi() {
   Serial.printf("📶 Menghubungkan ke WiFi: %s ", WIFI_SSID);
@@ -244,15 +269,16 @@ void connectWiFi() {
 }
 
 // ======================================================
-//          FUNGSI DAPATKAN WAKTU FORMATTED
+//              FORMAT WAKTU WIB (ESP8266-compatible)
 // ======================================================
 String getFormattedTime() {
-  struct tm timeinfo;
-  if (!getLocalTime(&timeinfo)) {
-    return "Waktu tidak tersedia";
+  time_t now = time(nullptr);
+  struct tm* timeinfo = localtime(&now);
+  if (now < 86400) {
+    return "Waktu belum sinkron";
   }
 
   char buffer[30];
-  strftime(buffer, sizeof(buffer), "%Y-%m-%d %H:%M:%S WIB", &timeinfo);
+  strftime(buffer, sizeof(buffer), "%Y-%m-%d %H:%M:%S WIB", timeinfo);
   return String(buffer);
 }
