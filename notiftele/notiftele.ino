@@ -3,7 +3,6 @@
 #include <WiFiClientSecure.h>
 #include <time.h>
 
-#include "secrets.h"
 
 // ============ KONFIGURASI WiFi ============
 const char* WIFI_SSID     = WIFI_SSID_VAL;
